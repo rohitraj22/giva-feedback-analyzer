@@ -11,12 +11,13 @@ This project was built as part of the "Feedback Hub" assignment.
 * **Theme Detection:** Automatically tags reviews with themes like **Durability**, **Comfort**, and **Appearance** based on keywords.
 * **Interactive Dashboard:** Visualizes data using **Chart.js** (Pie Chart for Sentiment, Bar Chart for Themes).
 * **Actionable Insights:** Automatically suggests improvements (e.g., "Fix durability issues") based on negative feedback patterns.
+* **Persistent Storage:** Data is securely stored in a **MongoDB** database (Cloud/Atlas), ensuring feedback is not lost when the server restarts.
 
 ## Tech Stack
 
 * **Frontend:** HTML5, CSS3, JavaScript (Fetch API), Chart.js.
 * **Backend:** Node.js, Express.js.
-* **Database:** In-Memory Storage (JavaScript Arrays) - *Chosen for simplicity and speed as per assignment guidelines.*
+* **Database:** MongoDB (Atlas) using Mongoose ODM.
 
 ## Logic Explanation
 
@@ -36,13 +37,26 @@ The system scans for specific keywords to assign themes:
 * **Durability:** Checks for words like *broke, fragile, quality*.
 * **Appearance:** Checks for words like *shiny, polish, design*.
 
+## Screenshots
+
+### Dashboard View
+![Dashboard View](screenshots/dashboard.png)
+
+### Drop Down Menu Options
+![Product](screenshots/product.png)
+![Rating](screenshots/rating.png)
+
+### Submission Form
+![Submission Form](screenshots/form.png)
+
+
 ## Installation & Run Instructions
 
 Follow these steps to run the project locally:
 
 1.  **Clone the Repository**
     ```bash
-    git clone [https://github.com/rohitraj22/giva-feedback-analyzer](https://github.com/rohitraj22/giva-feedback-analyzer)
+    git clone https://github.com/rohitraj22/giva-feedback-analyzer
     cd giva-feedback-analyzer
     ```
 
@@ -51,20 +65,24 @@ Follow these steps to run the project locally:
     npm install
     ```
 
-3.  **Start the Server**
+3.  **Setup Environment Variables**
+    * Create a new file named `.env` in the root folder.
+    * Add your MongoDB Connection String inside it:
+      ```env
+      MONGO_URI=mongodb+srv://<username>:<password>@cluster0.mongodb.net/?appName=Cluster0
+      ```
+
+4.  **Start the Server**
     ```bash
     node server.js
     ```
-    You should see: `Node.js Server running on http://localhost:3000`
+    You should see: `Server running at http://localhost:3000` and `MongoDB Connected`.
 
-4.  **Open the Frontend**
+5.  **Open the Frontend**
     * Go to the project folder.
     * Double-click `index.html` to open it in your browser.
 
 ## API Endpoints
 
-* **POST** `/api/submit`: Accepts JSON `{product, rating, review}`. Returns analyzed sentiment and themes.
-* **GET** `/api/feedback`: Returns the list of all stored feedback and analysis.
-
----
-**Note:** Since this uses In-Memory storage, all data will be reset if the server is restarted.
+* **POST** `/api/submit`: Accepts JSON `{product, rating, review}`. Saves to MongoDB and returns analysis.
+* **GET** `/api/feedback`: Returns the history of all feedback stored in the database.

@@ -5,70 +5,128 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Giva Feedback Hub</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
     <style>
         body {
-            font-family: sans-serif; 
-            max-width: 800px; 
-            margin: auto; 
-            padding: 20px; 
-            background-color: #f4f4f4; 
+            font-family: sans-serif;
+            max-width: 800px;
+            margin: auto;
+            padding: 20px;
+            background-color: #f4f4f4;
         }
-        .container { 
-            background: white; 
-            padding: 20px; 
-            border-radius: 8px; 
-            box-shadow: 0 0 10px rgba(0,0,0,0.1); 
+
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
         }
-        .section { 
-            margin-bottom: 30px; 
-            border-bottom: 2px solid #eee; 
-            padding-bottom: 20px; 
+
+        .section {
+            margin-bottom: 30px;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 20px;
         }
-        input, select, textarea { 
-            width: 100%; 
-            padding: 10px; 
-            margin: 5px 0; 
+
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
         }
-        button { 
-            background-color: #4CAF50; 
-            color: white; 
-            padding: 10px 20px; 
-            border: none; 
-            cursor: pointer; 
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            cursor: pointer;
         }
-        button:hover { 
-            background-color: #45a049; 
+
+        button:disabled {
+            background: #9ccc9c;
+            cursor: not-allowed;
         }
-        .charts-container { 
-            display: flex; 
-            justify-content: space-around; 
-            flex-wrap: wrap; 
+
+        .charts-container {
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
         }
-        .chart-box { 
-            width: 45%; 
-            min-width: 300px; 
+
+        .chart-box {
+            width: 45%;
+            min-width: 300px;
         }
-        #insightsBox { 
-            background: #e8f5e9; 
-            padding: 10px; 
-            border-left: 5px solid #28a745; 
-            display: none; 
+
+        #insightsBox {
+            background: #e8f5e9;
+            padding: 10px;
+            border-left: 5px solid #28a745;
+            display: none;
         }
+
+        /* ---------- LOADER ---------- */
+        .loader-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(255,255,255,0.85);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 999;
+        }
+
+        .loader-box {
+            text-align: center;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #ddd;
+            border-top: 5px solid #4CAF50;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: auto;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .status-msg {
+            margin-top: 12px;
+            font-weight: 600;
+        }
+
+        .success { color: #2e7d32; }
+        .error { color: #c62828; }
     </style>
 </head>
 <body>
 
+<!-- LOADER -->
+<div class="loader-overlay" id="loader">
+    <div class="loader-box">
+        <div class="spinner"></div>
+        <div class="status-msg" id="loaderText">Processing...</div>
+    </div>
+</div>
+
 <div class="container">
     <h1>Feedback Hub</h1>
 
+    <!-- SUBMIT -->
     <div class="section">
         <h3>Submit Feedback</h3>
+
         <label>Product:</label>
         <select id="product">
             <option value="Silver Ring">Silver Ring</option>
             <option value="Gold Necklace">Gold Necklace</option>
             <option value="Diamond Earrings">Diamond Earrings</option>
         </select>
+
         <label>Rating:</label>
         <select id="rating">
             <option value="5">5 - Excellent</option>
@@ -77,11 +135,14 @@
             <option value="2">2 - Poor</option>
             <option value="1">1 - Terrible</option>
         </select>
+
         <label>Review:</label>
         <textarea id="review" rows="3" placeholder="Type your review here..."></textarea>
-        <button onclick="submitFeedback()">Submit Feedback</button>
+
+        <button id="submitBtn" onclick="submitFeedback()">Submit Feedback</button>
     </div>
 
+    <!-- DASHBOARD -->
     <div class="section">
         <h3>Dashboard Insights</h3>
         <div class="charts-container">
@@ -90,6 +151,7 @@
         </div>
     </div>
 
+    <!-- INSIGHTS -->
     <div class="section">
         <button onclick="generateInsights()">Generate Actionable Insights</button>
         <div id="insightsBox" style="margin-top: 15px;"></div>
@@ -97,34 +159,61 @@
 </div>
 
 <script>
-    // API Base URL with Port 3000
-    const API_URL = "http://localhost:3000/api"; 
+    const API_URL = "http://localhost:3000/api";
 
     let sentimentChartInstance = null;
     let themeChartInstance = null;
 
+    const loader = document.getElementById("loader");
+    const loaderText = document.getElementById("loaderText");
+    const submitBtn = document.getElementById("submitBtn");
+
+    function showLoader(text) {
+        loaderText.textContent = text;
+        loader.style.display = "flex";
+        submitBtn.disabled = true;
+    }
+
+    function hideLoader(msg, isError = false) {
+        loaderText.textContent = msg;
+        loaderText.className = "status-msg " + (isError ? "error" : "success");
+
+        setTimeout(() => {
+            loader.style.display = "none";
+            loaderText.className = "status-msg";
+            submitBtn.disabled = false;
+        }, 1200);
+    }
+
     async function submitFeedback() {
         const product = document.getElementById('product').value;
-        const rating = document.getElementById('rating').value;
-        const review = document.getElementById('review').value;
+        const rating = Number(document.getElementById('rating').value);
+        const review = document.getElementById('review').value.trim();
+
+        if (!review) {
+            showLoader("Please enter a review...");
+            hideLoader("Review is required", true);
+            return;
+        }
 
         try {
+            showLoader("Saving feedback...");
+
             const response = await fetch(`${API_URL}/submit`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ product, rating, review })
             });
 
-            if (response.ok) {
-                alert("Saved to Database!");
-                document.getElementById('review').value = ""; 
-                updateDashboard(); 
-            } else {
-                alert("Error saving feedback");
-            }
-        } catch (error) {
-            console.error("Error:", error);
-            alert("Is the server running?");
+            if (!response.ok) throw new Error();
+
+            document.getElementById('review').value = "";
+            hideLoader("Saved successfully ✔");
+            updateDashboard();
+
+        } catch (err) {
+            console.error(err);
+            hideLoader("Server error. Is backend running?", true);
         }
     }
 
@@ -133,74 +222,85 @@
             const res = await fetch(`${API_URL}/feedback`);
             const data = await res.json();
 
-            let posCount = 0, negCount = 0;
+            let posCount = 0;
+            let negCount = 0;
             let themeCounts = {};
 
             data.forEach(item => {
                 if (item.sentiment === "Positive") posCount++;
-                else negCount++;
+                if (item.sentiment === "Negative") negCount++;
 
-                item.themes.forEach(theme => {
+                (item.themes || []).forEach(theme => {
                     themeCounts[theme] = (themeCounts[theme] || 0) + 1;
                 });
             });
 
-            // Update Charts
             updateCharts(posCount, negCount, themeCounts);
-        } catch (error) {
-            console.error("Error fetching data:", error);
+        } catch (err) {
+            console.error("Dashboard error:", err);
         }
     }
 
     function updateCharts(pos, neg, themes) {
         const ctx1 = document.getElementById('sentimentChart').getContext('2d');
         if (sentimentChartInstance) sentimentChartInstance.destroy();
+
         sentimentChartInstance = new Chart(ctx1, {
             type: 'pie',
             data: {
                 labels: ['Positive', 'Negative'],
-                datasets: [{ data: [pos, neg], backgroundColor: ['#36a2eb', '#ff6384'] }]
-            },
-            options: { plugins: { title: { display: true, text: 'Sentiment' } } }
+                datasets: [{
+                    data: [pos, neg],
+                    backgroundColor: ['#36a2eb', '#ff6384']
+                }]
+            }
         });
 
         const ctx2 = document.getElementById('themeChart').getContext('2d');
         if (themeChartInstance) themeChartInstance.destroy();
+
         themeChartInstance = new Chart(ctx2, {
             type: 'bar',
             data: {
                 labels: Object.keys(themes),
-                datasets: [{ label: 'Mentions', data: Object.values(themes), backgroundColor: '#ffce56' }]
-            },
-            options: { plugins: { title: { display: true, text: 'Theme Detection' } } }
+                datasets: [{
+                    label: 'Mentions',
+                    data: Object.values(themes),
+                    backgroundColor: '#ffce56'
+                }]
+            }
         });
     }
 
     async function generateInsights() {
         const res = await fetch(`${API_URL}/feedback`);
         const data = await res.json();
-        
+
         let insights = [];
         let durabilityIssues = 0;
         let comfortIssues = 0;
 
         data.forEach(item => {
             if (item.sentiment === "Negative") {
-                if (item.themes.includes("Durability")) durabilityIssues++;
-                if (item.themes.includes("Comfort")) comfortIssues++;
+                if (item.themes?.includes("Durability")) durabilityIssues++;
+                if (item.themes?.includes("Comfort")) comfortIssues++;
             }
         });
 
-        if (durabilityIssues > 0) insights.push("High priority: Fix durability issues (breakage reported).");
-        if (comfortIssues > 0) insights.push("Suggestion: Customers find products heavy. Try lighter materials.");
-        if (insights.length === 0) insights.push("No critical issues found in database.");
+        if (durabilityIssues > 0)
+            insights.push("High priority: Fix durability issues.");
+
+        if (comfortIssues > 0)
+            insights.push("Customers find products heavy. Try lighter materials.");
+
+        if (insights.length === 0)
+            insights.push("No critical issues found.");
 
         const box = document.getElementById('insightsBox');
         box.style.display = "block";
         box.innerHTML = insights.join("<br><br>");
     }
 
-    // Initial Load
     updateDashboard();
 </script>
 
