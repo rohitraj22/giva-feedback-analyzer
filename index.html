@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Giva Feedback Hub</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: sans-serif; 
+            max-width: 800px; 
+            margin: auto; 
+            padding: 20px; 
+            background-color: #f4f4f4; 
+        }
+        .container { 
+            background: white; 
+            padding: 20px; 
+            border-radius: 8px; 
+            box-shadow: 0 0 10px rgba(0,0,0,0.1); 
+        }
+        .section { 
+            margin-bottom: 30px; 
+            border-bottom: 2px solid #eee; 
+            padding-bottom: 20px; 
+        }
+        input, select, textarea { 
+            width: 100%; 
+            padding: 10px; 
+            margin: 5px 0; 
+        }
+        button { 
+            background-color: #4CAF50; 
+            color: white; 
+            padding: 10px 20px; 
+            border: none; 
+            cursor: pointer; 
+        }
+        button:hover { 
+            background-color: #45a049; 
+        }
+        .charts-container { 
+            display: flex; 
+            justify-content: space-around; 
+            flex-wrap: wrap; 
+        }
+        .chart-box { 
+            width: 45%; 
+            min-width: 300px; 
+        }
+        #insightsBox { 
+            background: #e8f5e9; 
+            padding: 10px; 
+            border-left: 5px solid #28a745; 
+            display: none; 
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Feedback Hub</h1>
+
+    <div class="section">
+        <h3>Submit Feedback</h3>
+        <label>Product:</label>
+        <select id="product">
+            <option value="Silver Ring">Silver Ring</option>
+            <option value="Gold Necklace">Gold Necklace</option>
+            <option value="Diamond Earrings">Diamond Earrings</option>
+        </select>
+        <label>Rating:</label>
+        <select id="rating">
+            <option value="5">5 - Excellent</option>
+            <option value="4">4 - Good</option>
+            <option value="3">3 - Average</option>
+            <option value="2">2 - Poor</option>
+            <option value="1">1 - Terrible</option>
+        </select>
+        <label>Review:</label>
+        <textarea id="review" rows="3" placeholder="Type your review here..."></textarea>
+        <button onclick="submitFeedback()">Submit Feedback</button>
+    </div>
+
+    <div class="section">
+        <h3>Dashboard Insights</h3>
+        <div class="charts-container">
+            <div class="chart-box"><canvas id="sentimentChart"></canvas></div>
+            <div class="chart-box"><canvas id="themeChart"></canvas></div>
+        </div>
+    </div>
+
+    <div class="section">
+        <button onclick="generateInsights()">Generate Actionable Insights</button>
+        <div id="insightsBox" style="margin-top: 15px;"></div>
+    </div>
+</div>
+
+<script>
+    // API Base URL with Port 3000
+    const API_URL = "http://localhost:3000/api"; 
+
+    let sentimentChartInstance = null;
+    let themeChartInstance = null;
+
+    async function submitFeedback() {
+        const product = document.getElementById('product').value;
+        const rating = document.getElementById('rating').value;
+        const review = document.getElementById('review').value;
+
+        try {
+            const response = await fetch(`${API_URL}/submit`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ product, rating, review })
+            });
+
+            if (response.ok) {
+                alert("Saved to Database!");
+                document.getElementById('review').value = ""; 
+                updateDashboard(); 
+            } else {
+                alert("Error saving feedback");
+            }
+        } catch (error) {
+            console.error("Error:", error);
+            alert("Is the server running?");
+        }
+    }
+
+    async function updateDashboard() {
+        try {
+            const res = await fetch(`${API_URL}/feedback`);
+            const data = await res.json();
+
+            let posCount = 0, negCount = 0;
+            let themeCounts = {};
+
+            data.forEach(item => {
+                if (item.sentiment === "Positive") posCount++;
+                else negCount++;
+
+                item.themes.forEach(theme => {
+                    themeCounts[theme] = (themeCounts[theme] || 0) + 1;
+                });
+            });
+
+            // Update Charts
+            updateCharts(posCount, negCount, themeCounts);
+        } catch (error) {
+            console.error("Error fetching data:", error);
+        }
+    }
+
+    function updateCharts(pos, neg, themes) {
+        const ctx1 = document.getElementById('sentimentChart').getContext('2d');
+        if (sentimentChartInstance) sentimentChartInstance.destroy();
+        sentimentChartInstance = new Chart(ctx1, {
+            type: 'pie',
+            data: {
+                labels: ['Positive', 'Negative'],
+                datasets: [{ data: [pos, neg], backgroundColor: ['#36a2eb', '#ff6384'] }]
+            },
+            options: { plugins: { title: { display: true, text: 'Sentiment' } } }
+        });
+
+        const ctx2 = document.getElementById('themeChart').getContext('2d');
+        if (themeChartInstance) themeChartInstance.destroy();
+        themeChartInstance = new Chart(ctx2, {
+            type: 'bar',
+            data: {
+                labels: Object.keys(themes),
+                datasets: [{ label: 'Mentions', data: Object.values(themes), backgroundColor: '#ffce56' }]
+            },
+            options: { plugins: { title: { display: true, text: 'Theme Detection' } } }
+        });
+    }
+
+    async function generateInsights() {
+        const res = await fetch(`${API_URL}/feedback`);
+        const data = await res.json();
+        
+        let insights = [];
+        let durabilityIssues = 0;
+        let comfortIssues = 0;
+
+        data.forEach(item => {
+            if (item.sentiment === "Negative") {
+                if (item.themes.includes("Durability")) durabilityIssues++;
+                if (item.themes.includes("Comfort")) comfortIssues++;
+            }
+        });
+
+        if (durabilityIssues > 0) insights.push("High priority: Fix durability issues (breakage reported).");
+        if (comfortIssues > 0) insights.push("Suggestion: Customers find products heavy. Try lighter materials.");
+        if (insights.length === 0) insights.push("No critical issues found in database.");
+
+        const box = document.getElementById('insightsBox');
+        box.style.display = "block";
+        box.innerHTML = insights.join("<br><br>");
+    }
+
+    // Initial Load
+    updateDashboard();
+</script>
+
+</body>
+</html>
